@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Museu dels Avantpassats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="img/entrada.webp">
+<link rel="stylesheet" href="css/museu.css">
+</head>
+<body>
+
+<!-- ── Entrada ──────────────────────────────────────────────────────────── -->
+<section id="entrada" class="pantalla-museu">
+  <div class="entrada-fons" aria-hidden="true"></div>
+  <div class="notes-aire" aria-hidden="true"><i>♪</i><i>♫</i><i>♪</i><i>♩</i><i>♫</i></div>
+  <header class="entrada-cartell">
+    <p class="kicker">Obert cada dia · Entrada lliure</p>
+    <h1>Museu dels <span>Avantpassats</span></h1>
+  </header>
+  <div class="entrada-peu">
+    <p class="lema">Cada instrument de l'orquestra té una família, i cada família té els seus avis.
+      Vine a conèixer-los: com eren, d'on venien i, sobretot, <b>com sonaven</b>.</p>
+    <button id="btn-entra" class="btn or gran">Entra al museu</button>
+    <p class="peu">🎧 Porta auriculars o altaveus: aquí tot sona.</p>
+  </div>
+</section>
+
+<!-- ── Plànol ───────────────────────────────────────────────────────────── -->
+<section id="planol" class="pantalla-museu" hidden>
+  <header class="barra">
+    <span></span>
+    <h2 class="rotul">Plànol del museu</h2>
+    <span></span>
+  </header>
+  <p class="guia">Quatre sales, quatre famílies. Tria'n una.</p>
+  <div class="mapa">
+    <img src="img/planol.webp" alt="Plànol del museu amb quatre sales al voltant d'un vestíbul circular" draggable="false">
+    <div id="sales"></div>
+  </div>
+</section>
+
+<!-- ── Sala ─────────────────────────────────────────────────────────────── -->
+<section id="sala" class="pantalla-museu" hidden>
+  <header class="barra">
+    <button id="torna-planol" class="btn fusta">← Plànol</button>
+    <h2 class="rotul" id="sala-titol">Sala</h2>
+    <span></span>
+  </header>
+  <p class="guia">Toca una vitrina per obrir-la.<span class="pista-mobil"> Llisca per veure-les totes →</span></p>
+  <div class="escenari-sala">
+    <div class="sala-quadre">
+      <img src="img/sala-metall.webp" alt="" draggable="false">
+      <div id="vitrines"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Vitrina ──────────────────────────────────────────────────────────── -->
+<section id="vitrina" class="pantalla-museu" hidden>
+  <div class="vitrina-fons" aria-hidden="true"></div>
+  <header class="barra">
+    <button id="torna-sala" class="btn fusta">← Sala</button>
+    <h2 class="rotul" id="vitrina-titol">Vitrina</h2>
+    <span></span>
+  </header>
+  <div class="vitrina-cos">
+    <div class="moble">
+      <div class="vidre-gran">
+        <div id="reproductor"></div>
+      </div>
+      <div class="peanya-gran"><span class="placa-nom" id="placa-nom"></span></div>
+    </div>
+    <aside class="cartela">
+      <p class="cartela-familia" id="cartela-familia"></p>
+      <h3 id="cartela-nom"></h3>
+      <p class="cartela-anys" id="cartela-anys"></p>
+      <p id="cartela-text"></p>
+      <p class="cartela-parada" id="cartela-parada" aria-live="polite"></p>
+      <div class="controls" role="group" aria-label="Controls del vídeo">
+        <button id="ctl-inici" class="btn rodo" aria-label="Des del principi">⟲</button>
+        <button id="ctl-ant" class="btn rodo" aria-label="Parada anterior">⏮</button>
+        <button id="ctl-play" class="btn rodo or gran-rodo" aria-label="Reprodueix o atura">⏯</button>
+        <button id="ctl-seg" class="btn rodo" aria-label="Parada següent">⏭</button>
+      </div>
+      <p class="teclat">Espai: atura · ← →: canvia de parada</p>
+      <button id="btn-prova" class="btn or" disabled>Mira el vídeo per obrir la prova</button>
+    </aside>
+  </div>
+
+  <!-- Prova de la vitrina -->
+  <div id="prova" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="prova-enunciat">
+    <div id="prova-targeta" class="fitxa">
+      <header class="fitxa-cap">
+        <span class="cinta">Prova de la vitrina</span>
+        <button id="prova-tanca" class="btn rodo petit" aria-label="Tanca la prova">✕</button>
+      </header>
+      <div id="prova-punts" class="prova-punts"></div>
+      <div class="prova-npc">
+        <img id="prova-retrat" alt="">
+        <div class="prova-bafarada"><span class="prova-qui" id="prova-qui"></span><h3 id="prova-enunciat"></h3></div>
+      </div>
+      <div id="prova-cos"></div>
+      <p id="prova-fb" class="prova-fb" hidden aria-live="polite"></p>
+      <button id="prova-seguent" class="btn or" hidden>Següent</button>
+    </div>
+  </div>
+</section>
+
+<!-- Botó flotant del passaport -->
+<button id="btn-passaport" class="passaport-flot" hidden aria-label="Obre el passaport">
+  <img src="img/passaport.webp" alt="">
+  <span class="pf-comptador" id="pf-comptador">0</span>
+</button>
+
+<!-- ── Passaport ────────────────────────────────────────────────────────── -->
+<div id="passaport" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="passaport-titol">
+  <div class="llibreta">
+    <header class="fitxa-cap">
+      <span class="cinta" id="passaport-titol">Passaport del visitant</span>
+      <button id="passaport-tanca" class="btn rodo petit" aria-label="Tanca el passaport">✕</button>
+    </header>
+    <p class="passaport-resum" id="passaport-resum"></p>
+    <p id="passaport-msg" class="passaport-msg"></p>
+    <div id="passaport-pagines" class="pagines"></div>
+  </div>
+</div>
+
+<!-- ── Diploma (21/21) ──────────────────────────────────────────────────── -->
+<div id="diploma" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="diploma-titol">
+  <div class="diploma">
+    <p class="kicker">Museu dels Avantpassats</p>
+    <h2 id="diploma-titol">Diploma de conservador/a</h2>
+    <p>Aquest diploma reconeix que</p>
+    <input id="diploma-nom" type="text" maxlength="40" placeholder="Escriu el teu nom" aria-label="El teu nom" autocomplete="off">
+    <p>ha recuperat les <b>21 fitxes</b> de l’arxiu i ha descobert els avantpassats de tots els instruments de l’orquestra.</p>
+    <div class="diploma-medalles" id="diploma-medalles"></div>
+    <div class="diploma-firmes">
+      <figure><img src="img/npc-marti-somriu.webp" alt=""><b>Dr. Martí</b><span>historiador</span></figure>
+      <figure><img src="img/npc-carla-somriu.webp" alt=""><b>Dra. Carla</b><span>especialista en so</span></figure>
+    </div>
+    <p class="diploma-data" id="diploma-data"></p>
+    <div class="diploma-botons">
+      <button id="diploma-imprimeix" class="btn or">Imprimeix</button>
+      <button id="diploma-tanca" class="btn">Tanca</button>
+    </div>
+  </div>
+</div>
+
+<script src="../_bridge.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" crossorigin="anonymous"></script>
+<script src="js/data.js"></script>
+<script src="js/art.js"></script>
+<script src="js/mecanica.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/escena.js"></script>
+<script src="js/dialeg.js"></script>
+<script src="js/historia.js"></script>
+<script src="js/museu.js"></script>
+</body>
+</html>
