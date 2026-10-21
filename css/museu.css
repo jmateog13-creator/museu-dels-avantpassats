@@ -461,8 +461,9 @@ h1 span { color: var(--vermell); }
   background: linear-gradient(180deg, rgba(50,32,16,0) 45%, rgba(50,32,16,.45));
 }
 .dl-marc { position: relative; width: min(880px, 100%); display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; cursor: default; }
-.dl-retrat { width: clamp(120px, 19vw, 200px); margin-right: -22px; position: relative; z-index: 1; }
-.dl-retrat img { width: 100%; height: auto; filter: drop-shadow(0 8px 10px rgba(40,25,10,.35)); transform-origin: 50% 100%; }
+.dl-retrat { width: clamp(170px, 27vw, 290px); aspect-ratio: 743 / 568; margin-right: -40px; position: relative; z-index: 1; transform-origin: 50% 100%; }
+/* Dues capes apilades: la que entra i la que surt (vegeu dialeg.js). */
+.dl-capa { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; visibility: hidden; opacity: 0; filter: drop-shadow(0 8px 10px rgba(40,25,10,.35)); transform-origin: 50% 100%; will-change: transform, opacity; }
 .dl-caixa {
   position: relative; display: grid; gap: 10px; min-height: 150px; align-content: start;
   padding: 26px 24px 16px 38px; border-radius: 26px; background: var(--paper);
@@ -482,14 +483,14 @@ h1 span { color: var(--vermell); }
 .dl-salta { opacity: .8; }
 
 /* Final del vídeo: l'investigador et crida a respondre */
-.esc-fi .fi-npc { display: grid; grid-template-columns: 26cqw 1fr; align-items: end; gap: 2cqw; text-align: left; margin-top: .6cqh; }
+.esc-fi .fi-npc { display: grid; grid-template-columns: 32cqw 1fr; align-items: end; gap: 2cqw; text-align: left; margin-top: .6cqh; }
 .esc-fi .fi-npc img { width: 100%; height: auto; }
 .esc-fi .fi-npc p { margin: 0 0 1.4cqh; font-size: 4.1cqw; line-height: 1.3; color: var(--text); background: var(--paper-2); padding: 1.2cqh 3cqw; border-radius: 3.5cqw; }
 .esc-fi .fi-npc p b { display: block; font-size: 3.6cqw; color: var(--npc); }
 .esc-fi .btn { font-size: 4.6cqw; min-height: 0; padding: 1.4cqh 4cqw; }
 
 /* Prova: qui pregunta i com reacciona */
-.prova-npc { display: grid; grid-template-columns: clamp(76px, 13vw, 112px) minmax(0, 1fr); gap: 12px; align-items: end; }
+.prova-npc { display: grid; grid-template-columns: clamp(96px, 16vw, 140px) minmax(0, 1fr); gap: 12px; align-items: end; }
 .prova-npc img { width: 100%; height: auto; filter: drop-shadow(0 6px 6px rgba(40,25,10,.25)); transform-origin: 50% 100%; }
 .prova-bafarada { position: relative; background: #fff; border-radius: 20px; padding: 12px 16px 14px; box-shadow: inset 0 0 0 3px var(--npc, var(--llauto-2)), 0 4px 0 var(--npc, var(--llauto-2)); margin-bottom: 8px; }
 .prova-bafarada::before { content: ''; position: absolute; left: -12px; bottom: 18px; border: 10px solid transparent; border-right: 14px solid var(--npc, var(--llauto-2)); border-left: 0; }
@@ -528,7 +529,7 @@ h1 span { color: var(--vermell); }
 @media (max-width: 520px) {
   .dialeg { padding-inline: 10px; }
   .dl-marc { grid-template-columns: 1fr; }
-  .dl-retrat { width: 104px; margin: 0 0 -14px 14px; }
+  .dl-retrat { width: 136px; margin: 0 0 -14px 4px; }
   .dl-caixa { padding: 24px 16px 14px; min-height: 0; }
   .dl-nom { left: 128px; font-size: .95rem; }
   .dl-nom small { display: none; }

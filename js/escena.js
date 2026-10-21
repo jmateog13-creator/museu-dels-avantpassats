@@ -37,6 +37,9 @@ const ESCENA = (() => {
     const P = inst.parades;
     const TIRA = inst.tira || TIRA_DEFECTE;   // cada instrument mostra el seu registre
 
+    // Només les veus d'aquest instrument viuen al graf d'àudio.
+    AUDIO.prepara(P.map(p => p.timbre), P.some(p => p.bordo));
+
     // ── Temps absoluts ──
     const inici = [];
     let t = 0;
@@ -265,7 +268,7 @@ const ESCENA = (() => {
     tl.to({}, { duration: .01 }, total);
 
     // ── Àudio: tot al Transport ──
-    const T = Tone.Transport;
+    const T = Tone.getTransport();   // Tone.Transport és una constant del context inicial
     function programa() {
       T.cancel(0);
       P.forEach((p, i) => {

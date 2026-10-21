@@ -136,111 +136,26 @@ const AUDIO = (() => {
     violi:      { base: 1100, oct: 3.2, q: 1,   a: .07, r: .3,  dist: 0,   vib: [5.8, .07],  scoop: -10, jitter: 3,  rev: .45, ale: .2,  formant: [2800, 6, 1.3], cos: [[280, 5, 2], [480, 3, 1.5], [1100, -3, 1.5]], vol: -12 },
   };
 
-  let llest = false, master, reverb, veus = {}, ale, aleFiltre, sfx = {}, bordoSynth, buf;
+  let llest = false, master, reverb, veus = {}, ale, aleFiltre, sfx = {}, bordoSynth = null, buf;
 
+  // ── Rendiment ──
+  // Abans es construïen els 85 timbres en entrar: ~8.000 nodes (senyals,
+  // filtres, LFOs de vibrato) processant sense parar, i el fil d'àudio no
+  // arribava a temps → cruixits que sonaven a saturació. Ara cada vitrina
+  // crea només les seves veus (`prepara`) i allibera les altres.
   async function init() {
     if (llest) return;
+    // Buffer "balanced": tot va programat al Transport amb lookahead, així que
+    // un buffer més gran no es nota i evita talls de bloc.
+    Tone.setContext(new Tone.Context({ latencyHint: 'balanced', lookAhead: .1 }));
     await Tone.start();
-    Tone.getContext().lookAhead = 0.08;
 
-    const limit = new Tone.Limiter(-1).toDestination();
-    master = new Tone.Compressor({ threshold: -18, ratio: 3, attack: .01, release: .2 }).connect(limit);
+    // Bus mestre suau: compressor de cola (poca reducció) + limitador de seguretat.
+    const limit = new Tone.Limiter(-1.5).toDestination();
+    master = new Tone.Compressor({ threshold: -10, ratio: 2, attack: .02, release: .25, knee: 6 }).connect(limit);
+    Tone.getDestination().volume.value = -3;   // Tone.Destination apunta al context vell
     reverb = new Tone.Reverb({ decay: 2.6, preDelay: .02, wet: 1 }).connect(master);
     await reverb.generate();
-
-    const sortida = (t, cadena) => {
-      const nivell = new Tone.Gain(Tone.dbToGain(t.vol));
-      const envio = new Tone.Gain(t.rev);
-      (t.cos || []).forEach(([f, g, q]) => cadena.push(new Tone.Filter({ type: 'peaking', frequency: f, gain: g, Q: q })));
-      cadena.push(new Tone.Filter({ type: 'peaking', frequency: t.formant[0], gain: t.formant[1], Q: t.formant[2] }), nivell);
-      nivell.connect(master); nivell.connect(envio); envio.connect(reverb);
-      return cadena;
-    };
-    for (const [id, t] of Object.entries(TIMBRES)) {
-      if (t.tipus === 'pinca') {
-        // Sis cordes que poden sonar alhora: un PluckSynth per corda, en roda.
-        const roda = Array.from({ length: t.veus || 6 }, () => new Tone.PluckSynth({ attackNoise: t.soroll, dampening: t.apaga, resonance: t.ressona, release: 1.2 }));
-        const entrada = new Tone.Gain(1);
-        roda.forEach(p => p.connect(entrada));
-        const cadena = t.dist ? [new Tone.Distortion({ distortion: t.dist, oversample: '2x' })] : [];
-        entrada.chain(...sortida(t, cadena));
-        veus[id] = { roda, k: 0, t };
-        continue;
-      }
-      if (t.tipus === 'membrana') {
-        const roda = Array.from({ length: 4 }, () => new Tone.MembraneSynth({ pitchDecay: t.caiguda, octaves: t.octaves,
-          envelope: { attack: .002, decay: t.decau, sustain: 0, release: .6 } }));
-        const entrada = new Tone.Gain(1);
-        roda.forEach(m => m.connect(entrada));
-        entrada.chain(...sortida(t, []));
-        veus[id] = { roda, k: 0, t };
-        continue;
-      }
-      if (t.tipus === 'bateria') {
-        const entrada = new Tone.Gain(1);
-        entrada.chain(...sortida(t, []));
-        const memb = (nota, decay, oct = 4, vol = 0) => ({ s: new Tone.MembraneSynth({ pitchDecay: .04, octaves: oct, envelope: { attack: .001, decay, sustain: 0, release: .1 }, volume: vol }).connect(entrada), nota });
-        const soroll = (tipus, decay, f, q, vol) => {
-          const fl = new Tone.Filter({ type: 'bandpass', frequency: f, Q: q }).connect(entrada);
-          return { n: new Tone.NoiseSynth({ noise: { type: tipus }, envelope: { attack: .001, decay, sustain: 0, release: .05 }, volume: vol }).connect(fl) };
-        };
-        const metall = (freq, decay, harm, mod, ress, vol) => ({ m: new Tone.MetalSynth({ envelope: { attack: .001, decay, release: .2 }, harmonicity: harm, modulationIndex: mod, resonance: ress, octaves: 1.5, volume: vol }).connect(entrada), freq });
-        // Cada so: una o dues capes (pell + soroll, o metall).
-        const banc = [
-          [memb('C1', .45, 6, 2)],                                          // 0 bombo
-          [memb('E3', .12, 2, -6), soroll('white', .18, 3000, .8, -6)],     // 1 caixa
-          [metall(300, 1.4, 5.1, 32, 4000, -10)],                           // 2 plats
-          [metall(400, .06, 5.1, 32, 6000, -14)],                           // 3 charles
-          [memb('G2', .3, 3, -2)],                                          // 4 tom
-          [memb('A1', .35, 3, 0), soroll('brown', .12, 300, 1, -12)],       // 5 djembé greu
-          [memb('D3', .18, 2, -4)],                                         // 6 djembé to
-          [memb('F3', .05, 2, -8), soroll('white', .08, 3500, 1.2, -6)],    // 7 djembé cop
-          [memb('F1', .6, 5, 2), soroll('pink', .2, 200, 1, -10)],          // 8 davul
-          [metall(500, .8, 5.1, 20, 5000, -12)],                            // 9 zil
-          [metall(1200, 1.6, 5.1, 6, 8000, -16)],                           // 10 triangle
-        ];
-        veus[id] = { banc, t };
-        continue;
-      }
-      if (t.tipus === 'percudida') {
-        const poly = t.fm
-          ? new Tone.PolySynth(Tone.FMSynth, { harmonicity: t.harm, modulationIndex: t.index,
-              envelope: { attack: .002, decay: t.cau, sustain: 0, release: 1 }, modulationEnvelope: { attack: .002, decay: .4, sustain: 0, release: .3 } })
-          : new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'custom', partials: t.parcials },
-              envelope: { attack: .003, decay: t.cau, sustain: t.sost || 0, release: Math.min(1.2, t.cau / 2) } });
-        poly.maxPolyphony = 24;
-        const efectes = [];
-        if (t.dist) efectes.push(new Tone.Distortion({ distortion: t.dist, oversample: '2x' }));
-        if (t.tremolo) efectes.push(new Tone.Tremolo({ frequency: t.tremolo[0], depth: t.tremolo[1], spread: 0 }).start());
-        poly.chain(...sortida(t, efectes));
-        veus[id] = { poly, t };
-        continue;
-      }
-      const synth = new Tone.MonoSynth({
-        oscillator: { type: t.osc || 'sawtooth' },
-        envelope: { attack: t.a, decay: .2, sustain: .82, release: t.r },
-        filter: { type: 'lowpass', Q: t.q, rolloff: -24 },
-        filterEnvelope: { attack: t.a * 1.6, decay: .3, sustain: .55, release: t.r, baseFrequency: t.base, octaves: t.oct },
-      });
-      const vib = new Tone.Vibrato({ frequency: t.vib[0], depth: t.vib[1] });
-      const cadena = [vib];
-      if (t.dist) cadena.push(new Tone.Distortion({ distortion: t.dist, oversample: '2x' }));
-      synth.chain(...sortida(t, cadena));
-      veus[id] = { synth, t };
-    }
-
-    // Bordó (lira da braccio): dues cordes que sonen alhora sota la melodia → polifònic.
-    const lira = TIMBRES.lira;
-    bordoSynth = new Tone.PolySynth(Tone.MonoSynth, {
-      oscillator: { type: 'sawtooth' },
-      envelope: { attack: .25, decay: .3, sustain: .9, release: .6 },
-      filter: { type: 'lowpass', Q: lira.q, rolloff: -24 },
-      filterEnvelope: { attack: .3, decay: .4, sustain: .6, release: .6, baseFrequency: 420, octaves: 2.2 },
-    });
-    const bordoNivell = new Tone.Gain(Tone.dbToGain(-19));
-    bordoSynth.chain(new Tone.Filter({ type: 'peaking', frequency: 300, gain: 4, Q: 1.5 }), bordoNivell);
-    bordoNivell.connect(master);
-    bordoNivell.connect(new Tone.Gain(.5).connect(reverb));
 
     aleFiltre = new Tone.Filter({ type: 'bandpass', frequency: 1900, Q: .9 }).connect(master);
     const bufFiltre = new Tone.Filter({ type: 'bandpass', frequency: 2600, Q: .8 }).connect(master);
@@ -252,7 +167,7 @@ const AUDIO = (() => {
     sfx.vent = { synth: new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: .25, decay: .1, sustain: 1, release: .35 }, volume: -20 }).connect(filtreRebobina), filtre: filtreRebobina };
     sfx.tic = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: .001, decay: .04, sustain: 0, release: .02 }, volume: -18 }).connect(master);
     sfx.pop = new Tone.MembraneSynth({ pitchDecay: .04, octaves: 3, envelope: { attack: .001, decay: .22, sustain: 0, release: .05 }, volume: -12 }).connect(master);
-    sfx.cop = new Tone.MembraneSynth({ pitchDecay: .02, octaves: 5, envelope: { attack: .001, decay: .35, sustain: 0, release: .05 }, volume: -6 }).connect(master);
+    sfx.cop = new Tone.MembraneSynth({ pitchDecay: .02, octaves: 5, envelope: { attack: .001, decay: .35, sustain: 0, release: .05 }, volume: -8 }).connect(master);
     sfx.veu = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: .002, decay: .05, sustain: 0, release: .02 }, volume: -24 }).connect(master);
     sfx.clic = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: .001, decay: .06, sustain: 0, release: .03 }, volume: -16 }).connect(master);
     sfx.campana = new Tone.FMSynth({ harmonicity: 3.01, modulationIndex: 6, envelope: { attack: .002, decay: .8, sustain: 0, release: .4 }, modulationEnvelope: { attack: .002, decay: .3, sustain: 0, release: .2 }, volume: -16 }).connect(master);
@@ -260,12 +175,137 @@ const AUDIO = (() => {
     llest = true;
   }
 
+  // Una veu: el sintetitzador del timbre + la seva cadena (cos, formant, nivell,
+  // enviament a reverb). `nodes` es guarda per poder-la alliberar sencera.
+  function creaVeu(id) {
+    const t = TIMBRES[id];
+    const nodes = [];
+    const n = x => (nodes.push(x), x);
+    const sortida = cadena => {
+      const nivell = n(new Tone.Gain(Tone.dbToGain(t.vol)));
+      const envio = n(new Tone.Gain(t.rev));
+      (t.cos || []).forEach(([f, g, q]) => cadena.push(n(new Tone.Filter({ type: 'peaking', frequency: f, gain: g, Q: q }))));
+      cadena.push(n(new Tone.Filter({ type: 'peaking', frequency: t.formant[0], gain: t.formant[1], Q: t.formant[2] })), nivell);
+      nivell.connect(master); nivell.connect(envio); envio.connect(reverb);
+      return cadena;
+    };
+    const dist = () => n(new Tone.Distortion({ distortion: t.dist, oversample: '2x' }));
+
+    if (t.tipus === 'pinca') {
+      // Sis cordes que poden sonar alhora: un PluckSynth per corda, en roda.
+      const roda = Array.from({ length: t.veus || 6 }, () => n(new Tone.PluckSynth({ attackNoise: t.soroll, dampening: t.apaga, resonance: t.ressona, release: 1.2 })));
+      const entrada = n(new Tone.Gain(1));
+      roda.forEach(p => p.connect(entrada));
+      entrada.chain(...sortida(t.dist ? [dist()] : []));
+      return { roda, k: 0, t, nodes };
+    }
+    if (t.tipus === 'membrana') {
+      const roda = Array.from({ length: 4 }, () => n(new Tone.MembraneSynth({ pitchDecay: t.caiguda, octaves: t.octaves,
+        envelope: { attack: .002, decay: t.decau, sustain: 0, release: .6 } })));
+      const entrada = n(new Tone.Gain(1));
+      roda.forEach(m => m.connect(entrada));
+      entrada.chain(...sortida([]));
+      return { roda, k: 0, t, nodes };
+    }
+    if (t.tipus === 'bateria') {
+      const entrada = n(new Tone.Gain(1));
+      entrada.chain(...sortida([]));
+      const memb = (nota, decay, oct = 4, vol = 0) => ({ s: n(new Tone.MembraneSynth({ pitchDecay: .04, octaves: oct, envelope: { attack: .001, decay, sustain: 0, release: .1 }, volume: vol })).connect(entrada), nota });
+      const soroll = (tipus, decay, f, q, vol) => {
+        const fl = n(new Tone.Filter({ type: 'bandpass', frequency: f, Q: q })).connect(entrada);
+        return { n: n(new Tone.NoiseSynth({ noise: { type: tipus }, envelope: { attack: .001, decay, sustain: 0, release: .05 }, volume: vol })).connect(fl) };
+      };
+      const metall = (freq, decay, harm, mod, ress, vol) => ({ m: n(new Tone.MetalSynth({ envelope: { attack: .001, decay, release: .2 }, harmonicity: harm, modulationIndex: mod, resonance: ress, octaves: 1.5, volume: vol })).connect(entrada), freq });
+      // Cada so: una o dues capes (pell + soroll, o metall).
+      const banc = [
+        [memb('C1', .45, 6, 2)],                                          // 0 bombo
+        [memb('E3', .12, 2, -6), soroll('white', .18, 3000, .8, -6)],     // 1 caixa
+        [metall(300, 1.4, 5.1, 32, 4000, -10)],                           // 2 plats
+        [metall(400, .06, 5.1, 32, 6000, -14)],                           // 3 charles
+        [memb('G2', .3, 3, -2)],                                          // 4 tom
+        [memb('A1', .35, 3, 0), soroll('brown', .12, 300, 1, -12)],       // 5 djembé greu
+        [memb('D3', .18, 2, -4)],                                         // 6 djembé to
+        [memb('F3', .05, 2, -8), soroll('white', .08, 3500, 1.2, -6)],    // 7 djembé cop
+        [memb('F1', .6, 5, 2), soroll('pink', .2, 200, 1, -10)],          // 8 davul
+        [metall(500, .8, 5.1, 20, 5000, -12)],                            // 9 zil
+        [metall(1200, 1.6, 5.1, 6, 8000, -16)],                           // 10 triangle
+      ];
+      return { banc, t, nodes };
+    }
+    if (t.tipus === 'percudida') {
+      const poly = n(t.fm
+        ? new Tone.PolySynth(Tone.FMSynth, { harmonicity: t.harm, modulationIndex: t.index,
+            envelope: { attack: .002, decay: t.cau, sustain: 0, release: 1 }, modulationEnvelope: { attack: .002, decay: .4, sustain: 0, release: .3 } })
+        : new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'custom', partials: t.parcials },
+            envelope: { attack: .003, decay: t.cau, sustain: t.sost || 0, release: Math.min(1.2, t.cau / 2) } }));
+      poly.maxPolyphony = 12;
+      const efectes = [];
+      if (t.dist) efectes.push(dist());
+      if (t.tremolo) efectes.push(n(new Tone.Tremolo({ frequency: t.tremolo[0], depth: t.tremolo[1], spread: 0 }).start()));
+      poly.chain(...sortida(efectes));
+      return { poly, t, nodes };
+    }
+    const synth = n(new Tone.MonoSynth({
+      oscillator: { type: t.osc || 'sawtooth' },
+      envelope: { attack: t.a, decay: .2, sustain: .82, release: t.r },
+      filter: { type: 'lowpass', Q: t.q, rolloff: -24 },
+      filterEnvelope: { attack: t.a * 1.6, decay: .3, sustain: .55, release: t.r, baseFrequency: t.base, octaves: t.oct },
+    }));
+    const cadena = [n(new Tone.Vibrato({ frequency: t.vib[0], depth: t.vib[1] }))];
+    if (t.dist) cadena.push(dist());
+    synth.chain(...sortida(cadena));
+    return { synth, t, nodes };
+  }
+
+  function alliberaVeu(id) {
+    const v = veus[id];
+    if (!v) return;
+    delete veus[id];
+    // Deixem acabar la cua (release + reverb curta) abans de destruir.
+    setTimeout(() => v.nodes.forEach(x => { try { x.dispose(); } catch (e) { /* ja alliberat */ } }), 1500);
+  }
+
+  // Bordó (lira da braccio): dues cordes alhora sota la melodia → polifònic.
+  function creaBordo() {
+    const lira = TIMBRES.lira;
+    const synth = new Tone.PolySynth(Tone.MonoSynth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: .25, decay: .3, sustain: .9, release: .6 },
+      filter: { type: 'lowpass', Q: lira.q, rolloff: -24 },
+      filterEnvelope: { attack: .3, decay: .4, sustain: .6, release: .6, baseFrequency: 420, octaves: 2.2 },
+    });
+    const filtre = new Tone.Filter({ type: 'peaking', frequency: 300, gain: 4, Q: 1.5 });
+    const nivell = new Tone.Gain(Tone.dbToGain(-19));
+    const envio = new Tone.Gain(.5);
+    synth.chain(filtre, nivell);
+    nivell.connect(master);
+    nivell.connect(envio); envio.connect(reverb);
+    return { synth, nodes: [synth, filtre, nivell, envio] };
+  }
+
+  // Deixa vives només les veus d'aquesta vitrina (i el bordó si cal).
+  function prepara(timbres, ambBordo = false) {
+    if (!llest) return;
+    const vull = new Set(timbres.filter(id => TIMBRES[id]));
+    Object.keys(veus).forEach(id => { if (!vull.has(id)) alliberaVeu(id); });
+    vull.forEach(id => { if (!veus[id]) veus[id] = creaVeu(id); });
+    if (ambBordo && !bordoSynth) bordoSynth = creaBordo();
+    if (!ambBordo && bordoSynth) {
+      const b = bordoSynth;
+      bordoSynth = null;
+      setTimeout(() => b.nodes.forEach(x => { try { x.dispose(); } catch (e) { /* res */ } }), 1500);
+    }
+  }
+  const veu = id => veus[id] || (TIMBRES[id] ? (veus[id] = creaVeu(id)) : null);
+
   const ara = () => Tone.now();
 
   // Nota d'època. `temps` és temps d'AudioContext.
   function nota(timbre, s, dur, vel = .8, temps = ara()) {
     if (!llest) return;
-    const v = veus[timbre], t = v.t;
+    const v = veu(timbre);
+    if (!v) return;
+    const t = v.t;
     if (t.tipus === 'pinca') {
       try {
         const corda = v.roda[v.k++ % v.roda.length];
@@ -324,7 +364,7 @@ const AUDIO = (() => {
       } catch (e) { /* ja programada més enllà */ }
     });
     try { buf.triggerRelease(t); } catch (e) { /* res */ }
-    try { bordoSynth.releaseAll(t); } catch (e) { /* res */ }
+    try { bordoSynth && bordoSynth.synth.releaseAll(t); } catch (e) { /* res */ }
   }
 
   // Fragment fora del Transport (preguntes d'escolta). Retorna la durada.
@@ -378,10 +418,11 @@ const AUDIO = (() => {
 
   function bordo(notes, dur, temps = ara()) {
     if (!llest) return;
-    try { bordoSynth.triggerAttackRelease(notes.map(hz), dur, temps, .7); } catch (e) { /* salt */ }
+    if (!bordoSynth) bordoSynth = creaBordo();
+    try { bordoSynth.synth.triggerAttackRelease(notes.map(hz), dur, temps, .7); } catch (e) { /* salt */ }
   }
 
-  return { init, nota, bordo, parla, silencia, fragment, rebobina, aterra, segell, clic, encert, pista, get llest() { return llest; } };
+  return { init, prepara, nota, bordo, parla, silencia, fragment, rebobina, aterra, segell, clic, encert, pista, get llest() { return llest; } };
 })();
 
 window.AUDIO = AUDIO;
